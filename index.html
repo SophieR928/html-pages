@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HTML 发布站</title>
+<style>
+:root{
+  --bg:#f4f5f7; --card:#ffffff; --line:#e5e7eb;
+  --ink:#111827; --ink2:#6b7280;
+  --brand:#4f46e5; --brand2:#4338ca; --brand-bg:#eef2ff;
+  --ok:#059669; --danger:#dc2626;
+  --radius:12px; --shadow:0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.05);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;font-size:14px}
+.wrap{max-width:860px;margin:0 auto;padding:32px 20px 60px}
+header h1{font-size:22px;margin:0 0 4px}
+header p{margin:0 0 28px;color:var(--ink2)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:24px;margin-bottom:24px}
+
+/* 上传区 */
+.drop{border:2px dashed #c7cbd4;border-radius:10px;padding:36px 16px;text-align:center;
+  cursor:pointer;transition:.15s;background:#fafafa}
+.drop:hover,.drop.on{border-color:var(--brand);background:var(--brand-bg)}
+.drop b{display:block;font-size:15px;margin-bottom:6px}
+.drop span{color:var(--ink2)}
+.drop .file{color:var(--brand);font-weight:600}
+.mode-tabs{display:flex;gap:8px;margin:16px 0 12px}
+.mode-tabs button{border:1px solid var(--line);background:#fff;color:var(--ink2);
+  padding:6px 14px;border-radius:999px;cursor:pointer;font-size:13px}
+.mode-tabs button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+textarea#paste{width:100%;height:180px;display:none;border:1px solid var(--line);
+  border-radius:8px;padding:12px;font-family:Consolas,monospace;font-size:13px;resize:vertical}
+textarea#paste.show{display:block}
+.row{display:flex;gap:12px;margin-top:16px}
+input#name{flex:1;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px}
+.btn{border:0;border-radius:8px;padding:10px 22px;font-size:14px;cursor:pointer;background:var(--brand);color:#fff}
+.btn:hover{background:var(--brand2)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
+.btn.ghost:hover{border-color:var(--brand);color:var(--brand)}
+.btn.sm{padding:5px 12px;font-size:13px;border-radius:7px}
+.btn.danger{background:#fff;border:1px solid var(--line);color:var(--danger)}
+.btn.danger:hover{border-color:var(--danger)}
+
+/* 发布成功横幅 */
+#result{display:none;margin-bottom:24px;background:#ecfdf5;border:1px solid #a7f3d0;
+  border-radius:var(--radius);padding:16px 20px;align-items:center;gap:12px}
+#result.show{display:flex;flex-wrap:wrap}
+#result .link{color:var(--ok);font-weight:600;word-break:break-all;flex:1;min-width:200px}
+
+/* 项目列表 */
+.list-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.list-head h2{font-size:16px;margin:0}
+#count{color:var(--ink2);font-size:13px}
+.proj{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+.proj:last-child{border-bottom:0}
+.proj .info{flex:1;min-width:0}
+.proj .name{font-weight:600;margin-bottom:2px}
+.proj .meta{color:var(--ink2);font-size:12px;margin-bottom:3px}
+.proj a{color:var(--brand);text-decoration:none;font-size:13px;word-break:break-all}
+.proj a:hover{text-decoration:underline}
+.proj .ops{display:flex;gap:8px;flex-shrink:0}
+.empty{text-align:center;color:var(--ink2);padding:28px 0}
+
+/* 提示 */
+#toast{position:fixed;left:50%;bottom:32px;transform:translateX(-50%) translateY(20px);
+  background:#111827;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;
+  opacity:0;pointer-events:none;transition:.25s}
+#toast.show{opacity:1;transform:translateX(-50%)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>HTML 发布站</h1>
+    <p>上传任意 HTML 即刻发布，每个项目一个永久不变的公开链接；更新内容，链接保持不变。</p>
+  </header>
+
+  <div id="result">
+    <span id="result-text"></span>
+    <span class="link" id="result-link"></span>
+    <button class="btn sm" onclick="copyText(resultLink.textContent)">复制链接</button>
+    <button class="btn ghost sm" onclick="openLink()">打开页面</button>
+  </div>
+
+  <div class="card">
+    <div class="mode-tabs">
+      <button id="tab-file" class="on" onclick="switchMode('file')">上传文件</button>
+      <button id="tab-paste" onclick="switchMode('paste')">粘贴代码</button>
+    </div>
+
+    <div id="drop" class="drop">
+      <b id="drop-title">拖拽 HTML 文件到这里，或点击选择</b>
+      <span id="drop-sub">支持 .html / .htm，最大 25MB</span>
+    </div>
+    <input type="file" id="file" accept=".html,.htm" hidden>
+    <textarea id="paste" class="" placeholder="在此粘贴完整的 HTML 代码……"></textarea>
+
+    <div class="row">
+      <input id="name" placeholder="项目名称（可选，默认取文件名）">
+      <button class="btn" id="pub" onclick="publish()">发 布</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="list-head">
+      <h2>已发布项目</h2><span id="count"></span>
+    </div>
+    <div id="list"><div class="empty">还没有发布任何项目</div></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let mode = 'file';
+let fileHtml = '', fileName = '';
+let updateId = null;   // 非 null 表示正在"更新内容"，发布后链接不变
+let lastUrl = '';
+
+const $ = id => document.getElementById(id);
+
+function switchMode(m){
+  mode = m;
+  $('tab-file').classList.toggle('on', m==='file');
+  $('tab-paste').classList.toggle('on', m==='paste');
+  $('drop').style.display = m==='file' ? '' : 'none';
+  $('paste').classList.toggle('show', m==='paste');
+}
+
+/* ---------- 文件选择 / 拖拽 ---------- */
+$('drop').onclick = () => $('file').click();
+$('file').onchange = e => { if(e.target.files[0]) readFile(e.target.files[0]); };
+$('drop').ondragover = e => { e.preventDefault(); $('drop').classList.add('on'); };
+$('drop').ondragleave = () => $('drop').classList.remove('on');
+$('drop').ondrop = e => {
+  e.preventDefault(); $('drop').classList.remove('on');
+  const f = e.dataTransfer.files[0];
+  if(f) readFile(f);
+};
+
+function readFile(f){
+  if(!/\.(html?|htm)$/i.test(f.name)){ toast('请选择 .html 文件'); return; }
+  const r = new FileReader();
+  r.onload = () => {
+    fileHtml = r.result; fileName = f.name.replace(/\.(html?|htm)$/i,'');
+    $('drop-title').innerHTML = '<span class="file">' + esc(f.name) + '</span>（点击可重新选择）';
+    $('drop-sub').textContent = formatSize(f.size);
+    if(!$('name').value) $('name').value = fileName;
+  };
+  r.readAsText(f, 'utf-8');
+}
+
+/* ---------- 发布 ---------- */
+async function publish(){
+  const html = mode==='file' ? fileHtml : $('paste').value;
+  if(!html.trim()){ toast('请先提供 HTML 内容'); return; }
+  const name = $('name').value.trim() || '未命名项目';
+  $('pub').disabled = true; $('pub').textContent = '发布中…';
+  try{
+    const res = await fetch('/api/publish', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id:updateId, name, html })
+    });
+    const d = await res.json();
+    if(!res.ok){ toast(d.error || '发布失败'); return; }
+    lastUrl = d.url;
+    $('result-text').textContent = d.updated ? '内容已更新，链接保持不变：' : '发布成功，公开链接：';
+    $('result-link').textContent = d.url;
+    $('result').classList.add('show');
+    toast(d.updated ? '更新成功' : '发布成功');
+    resetForm(); loadList();
+  }catch(e){ toast('网络错误'); }
+  $('pub').disabled = false; $('pub').textContent = '发 布';
+}
+
+function resetForm(){
+  fileHtml=''; fileName=''; updateId=null;
+  $('drop-title').textContent = '拖拽 HTML 文件到这里，或点击选择';
+  $('drop-sub').textContent = '支持 .html / .htm，最大 25MB';
+  $('paste').value=''; $('name').value='';
+}
+
+/* ---------- 列表 ---------- */
+let listItems = [];
+async function loadList(){
+  const res = await fetch('/api/list');
+  listItems = await res.json();
+  const items = listItems;
+  $('count').textContent = items.length ? items.length + ' 个' : '';
+  if(!items.length){ $('list').innerHTML = '<div class="empty">还没有发布任何项目</div>'; return; }
+  $('list').innerHTML = items.map(p => `
+    <div class="proj">
+      <div class="info">
+        <div class="name">${esc(p.name)}</div>
+        <div class="meta">更新于 ${p.updated_at}</div>
+        <a href="${p.url}" target="_blank">${esc(p.url)}</a>
+      </div>
+      <div class="ops">
+        <button class="btn sm ghost" onclick="copyText('${p.url}')">复制</button>
+        <button class="btn sm ghost" onclick="startUpdate('${p.id}')">更新</button>
+        <button class="btn sm danger" onclick="del('${p.id}')">删除</button>
+      </div>
+    </div>`).join('');
+}
+
+/* 更新：选定项目后，发布将覆盖内容且 ID 不变 */
+function startUpdate(id){
+  const p = listItems.find(x => x.id === id);
+  if(!p) return;
+  updateId = id;
+  $('name').value = p.name;
+  window.scrollTo({top:0, behavior:'smooth'});
+  toast('已进入更新模式：' + p.name + '，发布后链接不变');
+}
+
+async function del(id){
+  const p = listItems.find(x => x.id === id);
+  if(!p || !confirm('确定删除「' + p.name + '」？删除后链接立即失效。')) return;
+  await fetch('/api/delete/' + id, {method:'POST'});
+  toast('已删除'); loadList();
+}
+
+/* ---------- 工具 ---------- */
+function copyText(t){
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject())
+    .then(()=>toast('已复制'))
+    .catch(()=>{
+      const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
+      ta.select(); document.execCommand('copy'); ta.remove(); toast('已复制');
+    });
+}
+function openLink(){ window.open(lastUrl, '_blank'); }
+function toast(msg){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2200);
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+  .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function formatSize(n){
+  return n>1048576 ? (n/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(n/1024))+' KB';
+}
+
+loadList();
+</script>
+</body>
+</html>
